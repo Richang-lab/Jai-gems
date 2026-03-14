@@ -1,0 +1,44 @@
+<!-- Dashboard Home Page — loaded dynamically -->
+<div class="animate-fadeIn">
+    <div class="welcome-section">
+        <h2 class="welcome-title">Welcome back, <span id="welcomeName">Admin</span>!</h2>
+        <p class="welcome-subtitle">Here's an overview of your manufacturing unit. More modules coming soon.</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: var(--space-lg);">
+        <div class="card" style="border-left: 3px solid var(--gold-500);">
+            <div style="color: var(--text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-sm);">
+                System Status</div>
+            <div style="font-size: var(--font-size-2xl); font-weight: 700; color: var(--success);">Online</div>
+            <div style="font-size: var(--font-size-xs); color: var(--text-muted); margin-top: var(--space-sm);">All
+                systems operational</div>
+        </div>
+        <div class="card" style="border-left: 3px solid var(--info);">
+            <div style="color: var(--text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-sm);">Your
+                Role</div>
+            <div style="font-size: var(--font-size-xl); font-weight: 600;" id="dashRole">—</div>
+            <div style="font-size: var(--font-size-xs); color: var(--text-muted); margin-top: var(--space-sm);">Current
+                access level</div>
+        </div>
+        <div class="card" style="border-left: 3px solid var(--warning);">
+            <div style="color: var(--text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-sm);">
+                Modules</div>
+            <div style="font-size: var(--font-size-2xl); font-weight: 700;" id="dashModuleCount">—</div>
+            <div style="font-size: var(--font-size-xs); color: var(--text-muted); margin-top: var(--space-sm);">
+                Available to you</div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const user = Auth.getUser();
+            const navItems = Auth.getNavItems();
+            if (user) {
+                document.getElementById('welcomeName').textContent = user.full_name.split(' ')[0];
+                const rb = UI.roleBadge(user.role);
+                document.getElementById('dashRole').textContent = rb.label;
+                document.getElementById('dashModuleCount').textContent = navItems.length;
+            }
+        })();
+    </script>
+</div>

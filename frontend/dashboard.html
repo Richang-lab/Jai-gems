@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Jai Gems Art & Crafts — Dashboard" />
+    <title>Jai Gems — Dashboard</title>
+    <link rel="stylesheet" href="/css/variables.css" />
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/components.css" />
+    <link rel="stylesheet" href="/css/pages.css" />
+    <link rel="icon" type="image/png" href="/assets/logo.png" />
+</head>
+
+<body>
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="spinner spinner-lg"></div>
+        <p>Loading Jai Gems...</p>
+    </div>
+
+    <!-- App Layout -->
+    <div class="app-layout" id="appLayout" style="display: none;">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <img src="/assets/logo.png" alt="Jai Gems" onerror="this.style.display='none'" />
+                <div class="sidebar-brand-text">
+                    <h2>Jai Gems</h2>
+                    <span>Art & Crafts</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav" id="sidebarNav">
+                <!-- Populated by JS based on user role -->
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="sidebar-user-avatar" id="sidebarUserAvatar">A</div>
+                    <div class="sidebar-user-info">
+                        <div class="sidebar-user-name" id="sidebarUserName">Admin</div>
+                        <div class="sidebar-user-role" id="sidebarUserRole">Admin</div>
+                    </div>
+                </div>
+                <button class="btn-logout" id="btnLogout">
+                    Sign Out
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <header class="topbar">
+                <div class="flex items-center gap-md">
+                    <button class="menu-toggle" id="menuToggle">☰</button>
+                    <h1 class="topbar-title" id="pageTitle">Dashboard</h1>
+                </div>
+                <div class="topbar-actions">
+                    <span class="text-sm text-muted" id="topbarRole"></span>
+                </div>
+            </header>
+
+            <main class="page-content" id="pageContent">
+                <!-- Pages loaded dynamically here -->
+            </main>
+        </div>
+    </div>
+
+    <!-- Overlay for mobile sidebar -->
+    <div id="sidebarOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99;">
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/ui.js"></script>
+    <script>
+        (async function init() {
+            // Check auth
+            if (!Auth.isLoggedIn()) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                // Verify session with server
+                await Auth.verifySession();
+
+                const user = Auth.getUser();
+                if (!user) {
+                    Auth.logout();
+                    return;
+                }
+
+                // Build sidebar based on role
+                UI.buildSidebar();
+
+                // Show role in topbar
+                const rb = UI.roleBadge(user.role);
+                document.getElementById('topbarRole').textContent = rb.label;
+
+                // Hide loading, show app
+                document.getElementById('loadingScreen').style.display = 'none';
+                document.getElementById('appLayout').style.display = 'flex';
+
+                // Navigate to hash or default page
+                const page = window.location.hash.replace('#', '');
+                const navItems = Auth.getNavItems();
+                const defaultPage = navItems.length > 0 ? navItems[0].id : 'dashboard';
+                UI.navigateTo(page || defaultPage);
+
+                // Logout button
+                document.getElementById('btnLogout').addEventListener('click', () => {
+                    if (confirm('Are you sure you want to sign out?')) {
+                        Auth.logout();
+                    }
+                });
+
+                // Mobile menu toggle
+                const sidebar = document.getElementById('sidebar');
+                const overlay = document.getElementById('sidebarOverlay');
+                document.getElementById('menuToggle').addEventListener('click', () => {
+                    sidebar.classList.toggle('open');
+                    overlay.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
+                });
+                overlay.addEventListener('click', () => {
+                    sidebar.classList.remove('open');
+                    overlay.style.display = 'none';
+                });
+
+                // Handle hash change
+                window.addEventListener('hashchange', () => {
+                    const newPage = window.location.hash.replace('#', '');
+                    if (newPage) UI.navigateTo(newPage);
+                });
+
+            } catch (err) {
+                console.error('Init error:', err);
+                Auth.logout();
+            }
+        })();
+    </script>
+</body>
+
+</html>
