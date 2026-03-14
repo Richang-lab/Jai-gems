@@ -97,8 +97,13 @@ class ApiClient {
     login(email, password) { return this.request('POST', '/auth/login', { email, password }); }
     getMe() { return this.request('GET', '/auth/me'); }
 
-    // Users
-    getUsers() { return this.request('GET', '/users'); }
+    // Work Slips
+    getPendingSlips(type) { return this.request('GET', `/slips/pending/${type}`); }
+    generateSlip(data) { return this.request('POST', '/slips/generate', data); }
+    getSlips() { return this.request('GET', '/slips'); }
+
+    // Dashboard
+    getDashboardStats() { return this.request('GET', '/dashboard/stats'); }
     getRoles() { return this.request('GET', '/users/roles'); }
     createUser(userData) { return this.request('POST', '/users', userData); }
     updateUser(id, userData) { return this.request('PUT', `/users/${id}`, userData); }
@@ -124,6 +129,7 @@ class ApiClient {
     createFinishedGood(data) { return this.request('POST', '/inventory/finished-goods', data); }
     updateFinishedGood(id, data) { return this.request('PUT', `/inventory/finished-goods/${id}`, data); }
     deleteFinishedGood(id) { return this.request('DELETE', `/inventory/finished-goods/${id}`); }
+    bulkUploadFinishedGoods(items) { return this.request('POST', '/inventory/finished-goods/bulk', { items }); }
 
     // WIP Inventory (Wax / Casting)
     getWaxInventory() { return this.request('GET', '/inventory/wax'); }
@@ -133,6 +139,7 @@ class ApiClient {
     getCastingInventory() { return this.request('GET', '/inventory/casting'); }
     transactCasting(data) { return this.request('POST', '/inventory/casting/transaction', data); }
     deleteCasting(id) { return this.request('DELETE', `/inventory/casting/${id}`); }
+    bulkUploadCasting(items) { return this.request('POST', '/inventory/casting/bulk', { items }); }
     getCastingAttributes() { return this.request('GET', '/inventory/casting-attributes'); }
     addCastingAttribute(name) { return this.request('POST', '/inventory/casting-attributes', { name }); }
     deleteCastingAttribute(id) { return this.request('DELETE', `/inventory/casting-attributes/${id}`); }
@@ -140,6 +147,7 @@ class ApiClient {
     // Cross-Module Delete
     checkDeleteLinks(module, id) { return this.request('GET', `/inventory/check-delete/${module}/${id}`); }
     executeCrossDelete(payload) { return this.request('POST', '/inventory/cross-delete', payload); }
+    deleteAllInventory() { return this.request('DELETE', '/inventory/destroy-all'); }
 
     // App Settings
     getAppSettings() { return this.request('GET', '/orders/settings'); }

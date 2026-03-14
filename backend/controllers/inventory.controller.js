@@ -11,6 +11,81 @@ async function ensureGlobalUnique(codeStr) {
     }
 }
 
+const PREFIX_MAP = {
+    attributes: {
+        'Single Stone': 'SS',
+        'Multi-Stone': 'MS',
+        'Plain': 'PL',
+        'Figure': 'FIG'
+    },
+    categories: {
+        'Earcuff': 'EC',
+        'Jhumka': 'JH',
+        'Pendent': 'PD'
+    }
+};
+
+async function generateCastingCode(payload) {
+    let prefix = 'Temp';
+
+    // Check attributes first
+    if (payload.attribute_names && Array.isArray(payload.attribute_names)) {
+        for (const [name, code] of Object.entries(PREFIX_MAP.attributes)) {
+            if (payload.attribute_names.some(an => an && an.toLowerCase().trim() === name.toLowerCase())) {
+                prefix = code;
+                break;
+            }
+        }
+    } else if (payload.attribute_ids && Array.isArray(payload.attribute_ids)) {
+        const { data: attrs } = await supabaseAdmin.from('casting_attributes').select('name').in('id', payload.attribute_ids);
+        if (attrs) {
+            for (const [name, code] of Object.entries(PREFIX_MAP.attributes)) {
+                if (attrs.some(a => a.name && a.name.toLowerCase().trim() === name.toLowerCase())) {
+                    prefix = code;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Check category if still Temp
+    if (prefix === 'Temp' && payload.category_id) {
+        const { data: cat } = await supabaseAdmin.from('product_categories').select('name').eq('id', payload.category_id).single();
+        if (cat) {
+            for (const [name, code] of Object.entries(PREFIX_MAP.categories)) {
+                if (cat.name && cat.name.toLowerCase().trim() === name.toLowerCase()) {
+                    prefix = code;
+                    break;
+                }
+            }
+        }
+    } else if (prefix === 'Temp' && payload.category_name) {
+        for (const [name, code] of Object.entries(PREFIX_MAP.categories)) {
+            if (payload.category_name.toLowerCase().trim() === name.toLowerCase()) {
+                prefix = code;
+                break;
+            }
+        }
+    }
+
+    const basePrefix = `CST-${prefix}-`;
+    const { data: existing } = await supabaseAdmin
+        .from('casting_inventory')
+        .select('casting_product_code')
+        .ilike('casting_product_code', `${basePrefix}%`)
+        .order('casting_product_code', { ascending: false })
+        .limit(1);
+
+    let nextNum = 1;
+    if (existing && existing.length > 0) {
+        const parts = existing[0].casting_product_code.split('-');
+        const lastNum = parseInt(parts[parts.length - 1]);
+        if (!isNaN(lastNum)) nextNum = lastNum + 1;
+    }
+
+    return `${basePrefix}${String(nextNum).padStart(3, '0')}`;
+}
+
 /**
  * Handle Configuration Tables (Categories, Stone Shapes, Stone Materials)
  */
@@ -138,12 +213,15 @@ async function createFinishedGood(req, res) {
         payload.qty = parseInt(payload.qty) || 0;
         payload.price = parseFloat(payload.price) || 0;
         payload.weight = parseFloat(payload.weight) || 0;
+        payload.total_item_sold = parseInt(payload.total_item_sold) || 0;
 
         if (payload.product_code) payload.product_code = payload.product_code.trim();
         if (payload.casting_product_code) payload.casting_product_code = payload.casting_product_code.trim();
 
         if (!payload.product_code) return res.status(400).json({ error: 'Product Code is required' });
-        if (!payload.casting_product_code) payload.casting_product_code = payload.product_code;
+        if (!payload.casting_product_code) {
+            payload.casting_product_code = await generateCastingCode(payload);
+        }
 
         // Global uniqueness check
         await ensureGlobalUnique(payload.product_code);
@@ -205,6 +283,7 @@ async function updateFinishedGood(req, res) {
         if (updates.qty !== undefined) updates.qty = parseInt(updates.qty) || 0;
         if (updates.price !== undefined) updates.price = parseFloat(updates.price) || 0;
         if (updates.weight !== undefined) updates.weight = parseFloat(updates.weight) || 0;
+        if (updates.total_item_sold !== undefined) updates.total_item_sold = parseInt(updates.total_item_sold) || 0;
         if (updates.product_code) updates.product_code = updates.product_code.trim();
         if (updates.casting_product_code) updates.casting_product_code = updates.casting_product_code.trim();
 
@@ -569,6 +648,218 @@ async function executeCrossDelete(req, res) {
     }
 }
 
+// -------------------------------------------------------------
+// Bulk Upload Helpers
+// -------------------------------------------------------------
+async function bulkUploadFinishedGoods(req, res) {
+    try {
+        const { items } = req.body;
+        if (!Array.isArray(items)) return res.status(400).json({ error: 'Items array is required' });
+
+        let added = 0; let updated = 0; let failed = 0; let errors = [];
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            try {
+                if (item.product_code) item.product_code = String(item.product_code).trim();
+                if (item.casting_product_code) item.casting_product_code = String(item.casting_product_code).trim();
+
+                if (!item.product_code) throw new Error("Product Code is required");
+
+                // Map category name to ID if provided
+                if (item.category_name && !item.category_id) {
+                    const { data: cat } = await supabaseAdmin.from('product_categories').select('id').ilike('name', item.category_name.trim()).maybeSingle();
+                    if (cat) item.category_id = cat.id;
+                }
+
+                if (!item.casting_product_code) {
+                    item.casting_product_code = await generateCastingCode(item);
+                }
+
+                const { data: existing } = await supabaseAdmin.from('finished_goods')
+                    .select('id').eq('product_code', item.product_code).maybeSingle();
+
+                if (existing) {
+                    const updates = { updated_at: new Date().toISOString() };
+                    if (item.qty !== undefined && !isNaN(item.qty)) updates.qty = parseInt(item.qty);
+                    if (item.price !== undefined && !isNaN(item.price)) updates.price = parseFloat(item.price);
+                    if (item.weight !== undefined && !isNaN(item.weight)) updates.weight = parseFloat(item.weight);
+                    if (item.total_item_sold !== undefined && !isNaN(item.total_item_sold)) updates.total_item_sold = parseInt(item.total_item_sold);
+                    if (item.category_id) updates.category_id = item.category_id;
+                    if (item.casting_product_code) updates.casting_product_code = item.casting_product_code;
+
+                    const { error: updErr } = await supabaseAdmin.from('finished_goods')
+                        .update(updates)
+                        .eq('id', existing.id);
+                    if (updErr) throw updErr;
+                    updated++;
+                } else {
+                    await ensureGlobalUnique(item.product_code);
+                    await ensureGlobalUnique(item.casting_product_code);
+
+                    const payload = {
+                        ...item,
+                        qty: item.qty ? parseInt(item.qty) : 0,
+                        price: item.price ? parseFloat(item.price) : 0,
+                        weight: item.weight ? parseFloat(item.weight) : 0,
+                        total_item_sold: item.total_item_sold ? parseInt(item.total_item_sold) : 0,
+                        created_by: req.user.id
+                    };
+                    // Remove wax-only fields from FG payload
+                    delete payload.wax_std_weight;
+                    delete payload.wax_total_weight;
+                    delete payload.category_name;
+                    delete payload.attribute_names;
+
+                    const { error: insErr } = await supabaseAdmin.from('finished_goods').insert(payload);
+                    if (insErr) throw insErr;
+                    added++;
+                }
+
+                // Downward Sync: Casting and Wax
+                // Calculate Wax Qty = floor(total_weight / std_weight)
+                const waxStdWt = parseFloat(item.wax_std_weight) || 0;
+                const waxTotalWt = parseFloat(item.wax_total_weight) || 0;
+                const waxQty = (waxStdWt > 0) ? Math.floor(waxTotalWt / waxStdWt) : 0;
+
+                const baseSync = {
+                    product_code: item.product_code,
+                    casting_product_code: item.casting_product_code,
+                    category_id: item.category_id || null,
+                    updated_at: new Date().toISOString()
+                };
+
+                // Upsert Casting Placeholder
+                const { data: exCast } = await supabaseAdmin.from('casting_inventory').select('id').eq('product_code', item.product_code).maybeSingle();
+                if (exCast) {
+                    await supabaseAdmin.from('casting_inventory').update({ ...baseSync }).eq('id', exCast.id);
+                } else {
+                    await supabaseAdmin.from('casting_inventory').insert({ ...baseSync, qty: 0, total_weight: 0, std_weight: 0, created_by: req.user.id });
+                }
+
+                // Upsert Wax from CSV Data
+                const { data: exWax } = await supabaseAdmin.from('wax_inventory').select('id').eq('product_code', item.product_code).maybeSingle();
+                const waxPayload = {
+                    ...baseSync,
+                    qty: waxQty,
+                    std_weight: waxStdWt,
+                    total_weight: waxTotalWt
+                };
+                if (exWax) {
+                    await supabaseAdmin.from('wax_inventory').update(waxPayload).eq('id', exWax.id);
+                } else {
+                    await supabaseAdmin.from('wax_inventory').insert({ ...waxPayload, created_by: req.user.id });
+                }
+            } catch (err) {
+                failed++;
+                errors.push(`Row ${i + 2} (${item.product_code || 'unknown'}): ${err.message}`);
+            }
+        }
+        res.json({ message: `Processed ${items.length} items. Added: ${added}, Updated: ${updated}, Failed: ${failed}`, added, updated, failed, errors });
+    } catch (err) {
+        res.status(500).json({ error: err.message || 'Bulk upload failed' });
+    }
+}
+
+async function bulkUploadCasting(req, res) {
+    try {
+        const { items } = req.body;
+        if (!Array.isArray(items)) return res.status(400).json({ error: 'Items array is required' });
+
+        let added = 0; let updated = 0; let failed = 0; let errors = [];
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            try {
+                if (item.casting_product_code) item.casting_product_code = String(item.casting_product_code).trim();
+                // some CSVs might use "product_code" as header
+                if (!item.casting_product_code && item.product_code) item.casting_product_code = String(item.product_code).trim();
+                if (!item.casting_product_code) throw new Error("Casting Product Code is required");
+
+                const { data: existing } = await supabaseAdmin.from('casting_inventory')
+                    .select('id, qty, std_weight').eq('casting_product_code', item.casting_product_code).maybeSingle();
+
+                if (existing) {
+                    const updates = { updated_at: new Date().toISOString() };
+
+                    let finalQty = existing.qty || 0;
+                    if (item.qty !== undefined && !isNaN(item.qty)) {
+                        finalQty = existing.qty + parseInt(item.qty);
+                        updates.qty = finalQty;
+                    }
+
+                    let finalStdWt = existing.std_weight || 0;
+                    if (item.std_weight !== undefined && !isNaN(item.std_weight)) {
+                        finalStdWt = parseFloat(item.std_weight);
+                        updates.std_weight = finalStdWt;
+                    }
+
+                    if (updates.qty !== undefined || updates.std_weight !== undefined) {
+                        updates.total_weight = finalQty * finalStdWt;
+                    }
+
+                    const { error: updErr } = await supabaseAdmin.from('casting_inventory')
+                        .update(updates)
+                        .eq('id', existing.id);
+                    if (updErr) throw updErr;
+                    updated++;
+                } else {
+                    const productCode = item.product_code || item.casting_product_code;
+                    const addQty = item.qty ? parseInt(item.qty) : 0;
+                    const stdWt = item.std_weight ? parseFloat(item.std_weight) : 0;
+
+                    const payload = {
+                        product_code: productCode,
+                        casting_product_code: item.casting_product_code,
+                        qty: addQty,
+                        std_weight: stdWt,
+                        total_weight: addQty * stdWt,
+                        created_by: req.user.id
+                    };
+                    const { error: insErr } = await supabaseAdmin.from('casting_inventory').insert(payload);
+                    if (insErr) throw insErr;
+                    added++;
+                }
+            } catch (err) {
+                failed++;
+                errors.push(`Row ${i + 2} (${item.casting_product_code || 'unknown'}): ${err.message}`);
+            }
+        }
+        res.json({ message: `Processed ${items.length} items. Added: ${added}, Updated: ${updated}, Failed: ${failed}`, added, updated, failed, errors });
+    } catch (err) {
+        res.status(500).json({ error: err.message || 'Bulk upload failed' });
+    }
+}
+
+// -------------------------------------------------------------
+// Administration
+// -------------------------------------------------------------
+async function deleteAllInventory(req, res) {
+    try {
+        // Ensure this is truly only executed by admins
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Only administrators can perform this action' });
+        }
+
+        // We use a dummy condition .neq('id', '000...000') because supabase JS requires a filter for deletes
+        const dummyUuid = '00000000-0000-0000-0000-000000000000';
+
+        // Delete all records in the inventory tables
+        const promises = [
+            supabaseAdmin.from('finished_goods').delete().neq('id', dummyUuid),
+            supabaseAdmin.from('casting_inventory').delete().neq('id', dummyUuid),
+            supabaseAdmin.from('wax_inventory').delete().neq('id', dummyUuid)
+        ];
+
+        await Promise.all(promises);
+
+        res.json({ message: 'All inventory data has been permanently deleted.' });
+    } catch (err) {
+        console.error('Delete All Inventory Error:', err);
+        res.status(500).json({ error: 'Failed to delete inventory data' });
+    }
+}
+
 module.exports = {
     // Config
     getConfig, addCategory, deleteCategory, addStoneShape, deleteStoneShape, addMaterial, deleteMaterial,
@@ -582,5 +873,11 @@ module.exports = {
     getCastingAttributes, addCastingAttribute, deleteCastingAttribute,
 
     // Cross-Module Deletion
-    checkDeleteDependencies, executeCrossDelete
+    checkDeleteDependencies, executeCrossDelete,
+
+    // Bulk Uploads
+    bulkUploadFinishedGoods, bulkUploadCasting,
+
+    // Administration
+    deleteAllInventory
 };

@@ -26,6 +26,7 @@ router.delete('/materials/:id', requireRole('admin'), invController.deleteMateri
 // Finished Goods
 // -----------------------------------------------------------------
 router.get('/finished-goods', invController.getFinishedGoods);
+router.post('/finished-goods/bulk', requireRole('admin'), invController.bulkUploadFinishedGoods);
 router.post('/finished-goods', requireRole('admin'), invController.createFinishedGood);
 router.put('/finished-goods/:id', requireRole('admin'), invController.updateFinishedGood);
 router.delete('/finished-goods/:id', requireRole('admin'), invController.deleteFinishedGood);
@@ -39,6 +40,7 @@ router.post('/wax/transaction', requireRole('admin'), invController.postWaxInven
 router.delete('/wax/:id', requireRole('admin'), invController.deleteWaxInventory);
 
 router.get('/casting', invController.getCastingInventory);
+router.post('/casting/bulk', requireRole('admin'), invController.bulkUploadCasting);
 router.post('/casting/transaction', requireRole('admin'), invController.postCastingInventory);
 router.delete('/casting/:id', requireRole('admin'), invController.deleteCastingInventory);
 
@@ -50,5 +52,8 @@ router.delete('/casting-attributes/:id', requireRole('admin'), invController.del
 // Cross-Module Cascading Delete
 router.get('/check-delete/:module/:id', invController.checkDeleteDependencies);
 router.post('/cross-delete', requireRole('admin'), invController.executeCrossDelete);
+
+// Administration 
+router.delete('/destroy-all', requireRole('admin'), invController.deleteAllInventory);
 
 module.exports = router;

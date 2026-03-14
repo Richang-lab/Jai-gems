@@ -13,19 +13,19 @@
       </div>
       <div style="display:flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
         <!-- Filter Controls -->
-        <div style="display:flex; gap: 0.5rem; background: var(--bg-glass); padding: 0.3rem; border-radius: var(--radius-md);">
-           <select id="wCatFilter" class="form-input" style="width: 140px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
+        <div style="display:flex; flex-wrap: wrap; gap: 0.5rem; background: var(--bg-glass); padding: 0.3rem; border-radius: var(--radius-md); width: 100%;">
+           <select id="wCatFilter" class="form-input" style="flex: 1; min-width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
               <option value="">All Categories</option>
            </select>
-           <select id="wStockFilter" class="form-input" style="width: 140px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
+           <select id="wStockFilter" class="form-input" style="flex: 1; min-width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
               <option value="">All Stock</option>
               <option value="in">In Stock (>0)</option>
               <option value="out">Out of Stock (=0)</option>
            </select>
-           <select id="wAttrFilter" class="form-input" style="width: 140px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
+           <select id="wAttrFilter" class="form-input" style="flex: 1; min-width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
               <option value="">All Attributes</option>
            </select>
-           <select id="wSort" class="form-input" style="width: 140px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
+           <select id="wSort" class="form-input" style="flex: 1; min-width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
               <option value="code_asc">Code (A-Z)</option>
               <option value="qty_desc">Qty (High-Low)</option>
               <option value="qty_asc">Qty (Low-High)</option>
@@ -34,9 +34,13 @@
            </select>
         </div>
 
-        <div class="search-bar" style="display:flex; gap: 0.5rem; align-items: center;">
-          <input type="text" id="wSearch" class="form-input" placeholder="Search..." style="width: 200px;" />
+        <div class="search-bar" style="display:flex; flex: 1; min-width: 200px; gap: 0.5rem; align-items: center;">
+          <input type="text" id="wSearch" class="form-input" placeholder="Search..." style="flex: 1;" />
           <button class="btn btn-secondary btn-sm" id="btnSearchWax">Search</button>
+        </div>
+        <div class="view-toggles" style="display:flex; background:var(--bg-primary); border-radius:var(--radius-md); padding:2px;">
+           <button class="btn btn-sm" id="btnViewTable" style="background:var(--bg-glass); color:var(--text-primary);" title="Table View">${UI.icon('list')}</button>
+           <button class="btn btn-sm" id="btnViewCards" style="background:transparent; color:var(--text-muted);" title="Card View">${UI.icon('grid')}</button>
         </div>
         <button class="btn btn-primary" id="btnTransactWax">
           ${UI.icon('plus')} Add Wax
@@ -44,7 +48,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="waxListingContainer">
       <div class="table-container">
         <table class="table" id="waxTable">
           <thead>
@@ -56,13 +60,15 @@
               <th>Details</th>
               <th style="width: 80px;">Actions</th>
             </tr>
-          </thead>
+            <!-- Wait, Wax inventory uses table view by default, but to ensure 2 rows on mobile we need to confirm it's using the standard components.css table class. -->
           <tbody id="waxTableBody">
             <tr><td colspan="6" class="text-center"><div class="spinner"></div></td></tr>
           </tbody>
         </table>
       </div>
     </div>
+
+    <div id="waxCardGrid" style="display:none; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-sm); margin-bottom: 2rem;"></div>
 
     <!-- Wax Modal -->
     <div class="modal-overlay" id="waxModal">
@@ -158,6 +164,8 @@
   const tableBody = document.getElementById('waxTableBody');
   const modal = document.getElementById('waxModal');
   const form = document.getElementById('waxForm');
+  const listingContainer = document.getElementById('waxListingContainer');
+  const cardGrid = document.getElementById('waxCardGrid');
   const searchInput = document.getElementById('wSearch');
   const btnSearch = document.getElementById('btnSearchWax');
   const sortSelect = document.getElementById('wSort');
@@ -172,8 +180,48 @@
   const btnRemoveImage = document.getElementById('btnRemoveWaxImage');
 
   const modalTitle = document.getElementById('waxModalTitle');
+  const btnViewTable = document.getElementById('btnViewTable');
+  const btnViewCards = document.getElementById('btnViewCards');
+
+  let currentView = 'table';
+
+  // Set initial button states based on currentView
+  if (currentView === 'cards') {
+    btnViewCards.style.background = 'var(--bg-glass)';
+    btnViewCards.style.color = 'var(--text-primary)';
+    btnViewTable.style.background = 'transparent';
+    btnViewTable.style.color = 'var(--text-muted)';
+  } else {
+    btnViewTable.style.background = 'var(--bg-glass)';
+    btnViewTable.style.color = 'var(--text-primary)';
+    btnViewCards.style.background = 'transparent';
+    btnViewCards.style.color = 'var(--text-muted)';
+  }
 
   if (!isAdmin && btnTransact) btnTransact.style.display = 'none';
+
+  // View Toggles
+  btnViewTable.addEventListener('click', () => {
+    currentView = 'table';
+    btnViewTable.style.background = 'var(--bg-glass)';
+    btnViewTable.style.color = 'var(--text-primary)';
+    btnViewCards.style.background = 'transparent';
+    btnViewCards.style.color = 'var(--text-muted)';
+    listingContainer.style.display = 'block';
+    cardGrid.style.display = 'none';
+    renderTable();
+  });
+
+  btnViewCards.addEventListener('click', () => {
+    currentView = 'cards';
+    btnViewCards.style.background = 'var(--bg-glass)';
+    btnViewCards.style.color = 'var(--text-primary)';
+    btnViewTable.style.background = 'transparent';
+    btnViewTable.style.color = 'var(--text-muted)';
+    listingContainer.style.display = 'none';
+    cardGrid.style.display = 'grid';
+    renderCards();
+  });
 
   // Modal handlers
   if (btnTransact) {
@@ -295,6 +343,18 @@
     }
   }
 
+  function renderCurrentView() {
+    if (currentView === 'table') {
+      listingContainer.style.display = 'block';
+      cardGrid.style.display = 'none';
+      renderTable();
+    } else {
+      listingContainer.style.display = 'none';
+      cardGrid.style.display = 'grid';
+      renderCards();
+    }
+  }
+
   function renderTable() {
     if (filteredInventory.length === 0) {
       tableBody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No wax inventory found.</div></td></tr>`;
@@ -303,10 +363,6 @@
 
     tableBody.innerHTML = filteredInventory.map(item => {
       const catName = item.category?.name || categories.find(c => c.id === item.category_id)?.name || '';
-      const img = item.image_url
-        ? `<img src="${item.image_url}" style="width: 40px; height: 40px; object-fit: cover; border-radius: var(--radius-sm);" loading="lazy" />`
-        : `<div style="width: 40px; height: 40px; background: var(--bg-hover); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; color: var(--text-muted);">${UI.icon('image')}</div>`;
-
       const invStr = `
         <div style="font-weight:bold; color:${item.qty === 0 ? 'var(--error)' : 'inherit'}">${item.qty} prs</div>
         <div class="text-xs text-muted">Reserved: ${item.reserved_qty || 0}</div>
@@ -321,15 +377,19 @@
 
       return `
         <tr>
-          <td>${img}</td>
-          <td>
+          <td data-label="Image" class="img-cell">
+            <div class="product-img-wrapper" style="width: 100%; aspect-ratio: 1; border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-hover); display: flex; align-items: center; justify-content: center;">
+              ${item.image_url ? `<img src="${item.image_url}" style="width: 100%; height: 100%; object-fit: cover; cursor: pointer;" onclick="event.stopPropagation(); UI.showImage('${item.image_url}')">` : `<span class="text-muted">${UI.icon('image')}</span>`}
+            </div>
+          </td>
+          <td data-label="Product Code">
             <strong>${escapeHtml(item.product_code)}</strong>
             ${item.casting_product_code ? `<br/><span class="text-xs text-muted">Cast: ${escapeHtml(item.casting_product_code)}</span>` : ''}
           </td>
-          <td>${escapeHtml(catName)}</td>
-          <td>${invStr}</td>
-          <td>${detailsStr}</td>
-          <td>
+          <td data-label="Category">${escapeHtml(catName)}</td>
+          <td data-label="Stock">${invStr}</td>
+          <td data-label="Details">${detailsStr}</td>
+          <td data-label="Actions">
             <div style="display: flex; gap: 0.25rem; align-items: center;">
               <button class="btn btn-sm btn-secondary" onclick="editWax('${item.id}')" title="Edit">${UI.icon('edit')}</button>
               ${isAdmin ? `
@@ -340,6 +400,36 @@
             </div>
           </td>
         </tr>
+      `;
+    }).join('');
+  }
+
+  function renderCards() {
+    const grid = document.getElementById('waxCardGrid');
+    if (!grid) return;
+    if (filteredInventory.length === 0) {
+      grid.innerHTML = `<div style="grid-column: 1 / -1;"><div class="empty-state">No wax inventory found.</div></div>`;
+      return;
+    }
+
+    grid.innerHTML = filteredInventory.map(item => {
+      const img = item.image_url
+        ? `<img src="${item.image_url}" style="width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-md) var(--radius-md) 0 0; cursor: pointer;" loading="lazy" onclick="UI.showImage(this.src)" />`
+        : `<div style="width:100%; aspect-ratio:1; background:var(--bg-glass); border-radius:var(--radius-md) var(--radius-md) 0 0; display:flex; align-items:center; justify-content:center; color:var(--text-muted)">No Img</div>`;
+
+      return `
+        <div class="card" style="padding: 0; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; overflow: hidden; position: relative;" onclick="editWax('${item.id}')">
+          ${img}
+          <div style="padding: 1rem;">
+            <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem; color: var(--text-primary);">${escapeHtml(item.product_code)}</h3>
+            <div class="text-sm text-muted">Stock: <strong style="color:${item.qty === 0 ? 'var(--error)' : 'var(--text-primary)'}">${item.qty} prs</strong></div>
+          </div>
+          ${isAdmin ? `
+            <button class="btn btn-danger" style="position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.3rem; border-radius: 50%; opacity: 0.8; box-shadow: 0 2px 4px rgba(0,0,0,0.5);" onclick="event.stopPropagation(); deleteWax('${item.id}')" title="Delete">
+                ${UI.icon('trash')}
+            </button>
+            ` : ''}
+        </div>
       `;
     }).join('');
   }
@@ -440,7 +530,7 @@
     });
 
     filteredInventory = result;
-    renderTable();
+    renderCurrentView();
   }
 
   function doSearch() {

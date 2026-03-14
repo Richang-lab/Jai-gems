@@ -96,6 +96,29 @@
         </div>
 
       </div>
+
+      <!-- Super Admin Danger Zone -->
+      ${Auth.getUser()?.role === 'admin' ? `
+      <div class="card" style="margin-top: var(--space-xl); border: 2px solid var(--error); position: relative; overflow: hidden;">
+        <div style="position: absolute; top:0; left:0; right:0; height: 4px; background: var(--error);"></div>
+        <div style="margin-bottom:1rem;">
+          <h3 style="font-size:1.2rem;color:var(--error);margin:0 0 0.25rem; display: flex; align-items:center; gap: 0.5rem;">
+            ${UI.icon('alert-triangle')} DANGER ZONE
+          </h3>
+          <p class="text-muted text-sm" style="margin:0;">Destructive actions that cannot be undone.</p>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: rgba(2ef, 68, 68, 0.05); border-radius: var(--radius-md); border: 1px solid rgba(2ef, 68, 68, 0.2);">
+          <div>
+            <strong style="color:var(--text-primary); display:block; margin-bottom:0.25rem;">Delete All Inventory Data</strong>
+            <span class="text-sm text-muted">Permanently deletes all products from Finished Goods, Casting, and Wax modules.</span>
+          </div>
+          <button class="btn btn-danger" id="btnDangerDeleteAll">
+            ${UI.icon('trash')} Delete Everything
+          </button>
+        </div>
+      </div>
+      ` : ''}
     `;
 
     // Elements
@@ -133,8 +156,8 @@
 
         tbody.innerHTML = items.map(i => `
             <tr>
-                <td>${escapeHtml(i.name)}</td>
-                <td>
+                <td data-label="Name">${escapeHtml(i.name)}</td>
+                <td data-label="Action">
                     <button class="btn btn-sm btn-danger" onclick="deleteConfigItem('${typeStr}', '${i.id}')" title="Delete">
                         ${UI.icon('trash')}
                     </button>
@@ -160,6 +183,43 @@
             UI.toast(err.message || 'Failed to save rate', 'error');
         }
     });
+
+    const btnDanger = document.getElementById('btnDangerDeleteAll');
+    if (btnDanger) {
+        btnDanger.addEventListener('click', async () => {
+            const confirmed1 = await UI.confirm(
+                'WARNING: IRREVERSIBLE ACTION',
+                'You are about to permanently delete **ALL** inventory data across Finished Goods, Casting, and Wax.\n\nAre you absolutely sure you want to do this?'
+            );
+
+            if (!confirmed1) return;
+
+            const confirmed2 = await UI.prompt(
+                'FINAL CONFIRMATION',
+                'Type "DELETE ALL" to confirm total data destruction:',
+                ''
+            );
+
+            if (confirmed2 !== 'DELETE ALL') {
+                UI.toast('Aborted. Incorrect confirmation text.', 'info');
+                return;
+            }
+
+            try {
+                btnDanger.disabled = true;
+                btnDanger.innerHTML = '<div class="spinner text-xs"></div> Deleting...';
+
+                const res = await api.deleteAllInventory();
+                UI.toast(res.message || 'All inventory data deleted', 'success');
+
+            } catch (err) {
+                UI.toast(err.message || 'Failed to delete inventory', 'error');
+            } finally {
+                btnDanger.disabled = false;
+                btnDanger.innerHTML = `${UI.icon('trash')} Delete Everything`;
+            }
+        });
+    }
 
     async function addItem(label, apiFunc) {
         const name = await UI.prompt(`Add New ${label}`, `Enter name for ${label}:`, `New ${label} name...`);

@@ -8,6 +8,7 @@ const usersRoutes = require('./routes/users.routes');
 const clientsRoutes = require('./routes/clients.routes');
 const inventoryRoutes = require('./routes/inventory.routes');
 const ordersRoutes = require('./routes/orders.routes');
+const slipsRoutes = require('./routes/slips.routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,6 +26,7 @@ app.use('/api/users', usersRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/orders', ordersRoutes);
+app.use('/api/slips', slipsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -40,9 +42,15 @@ app.get('*', (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`\n  🏢 Jai Gems Management System`);
-    console.log(`  ────────────────────────────`);
-    console.log(`  Server running on http://localhost:${PORT}`);
-    console.log(`  Press Ctrl+C to stop\n`);
-});
+// Export for Vercel
+module.exports = app;
+
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`\n  🏢 Jai Gems Management System`);
+        console.log(`  ────────────────────────────`);
+        console.log(`  Local:            http://localhost:${PORT}`);
+        console.log(`  Network (WiFi):   http://192.168.1.75:${PORT}`);
+        console.log(`  Press Ctrl+C to stop\n`);
+    });
+}

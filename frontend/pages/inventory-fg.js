@@ -6,26 +6,26 @@
   const container = document.getElementById('pageContent');
 
   container.innerHTML = `
+    <!-- Page Header -->
     <div class="page-header">
       <div>
-        <h1 class="page-title">Finished Goods</h1>
-        <p class="page-subtitle">Manage finished inventory ready for orders</p>
+        <h1 class="page-title">Finished Goods Inventory</h1>
+        <p class="page-subtitle">Manage final products readiness and stocks</p>
       </div>
       <div style="display:flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-        <!-- Filter/Sort Bar -->
-        <div style="display:flex; gap: 0.5rem; background: var(--bg-glass); padding: 0.3rem; border-radius: var(--radius-md);">
-           <select id="pCategoryFilter" class="form-input" style="width: 140px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
+        <div style="display:flex; flex-wrap: wrap; gap: 0.5rem; background: var(--bg-glass); padding: 0.3rem; border-radius: var(--radius-md); width: 100%;">
+           <select id="pCategoryFilter" class="form-input" style="flex: 1; min-width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
               <option value="">All Categories</option>
            </select>
-           <select id="pStockFilter" class="form-input" style="width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
+           <select id="pStockFilter" class="form-input" style="flex: 1; min-width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
               <option value="all">All Stock</option>
               <option value="in">In Stock (>0)</option>
               <option value="out">Out of Stock (=0)</option>
            </select>
-           <select id="pAttrFilter" class="form-input" style="width: 140px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
+           <select id="pAttrFilter" class="form-input" style="flex: 1; min-width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
               <option value="">All Attributes</option>
            </select>
-           <select id="pSort" class="form-input" style="width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
+           <select id="pSort" class="form-input" style="flex: 1; min-width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
               <option value="code_asc">Code (A-Z)</option>
@@ -35,8 +35,8 @@
            </select>
         </div>
 
-        <div class="search-bar" style="display:flex; gap: 0.5rem; align-items: center;">
-          <input type="text" id="fgSearch" class="form-input" placeholder="Search..." style="width: 180px;" />
+        <div class="search-bar" style="display:flex; flex: 1; min-width: 200px; gap: 0.5rem; align-items: center;">
+          <input type="text" id="fgSearch" class="form-input" placeholder="Search..." style="flex: 1;" />
           <button class="btn btn-secondary btn-sm" id="btnSearchFg">Search</button>
         </div>
         
@@ -45,6 +45,9 @@
            <button class="btn btn-sm" id="btnViewCard" style="background:transparent; color:var(--text-muted);" title="Card View">${UI.icon('grid')}</button>
         </div>
         
+        <input type="file" id="fgCsvInput" accept=".csv" style="display:none;" />
+        <button class="btn btn-secondary" onclick="document.getElementById('fgCsvInput').click()">${UI.icon('plus')} Import CSV</button>
+
         <button class="btn btn-primary" id="btnCreateFg">
           ${UI.icon('plus')} Add Product
         </button>
@@ -58,9 +61,11 @@
             <tr>
               <th>Image</th>
               <th>Product Code</th>
+              <th>Casting Code</th>
               <th>Category</th>
-              <th>Inventory</th>
-              <th>Details</th>
+              <th>Stock</th>
+              <th>Sold</th>
+              <th>Attributes</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -71,7 +76,7 @@
       </div>
     </div>
 
-    <div id="cardViewContainer" style="display:none; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-md); margin-bottom: 2rem;">
+    <div id="cardViewContainer" style="display:none; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-sm); margin-bottom: 2rem;">
        <!-- Cards injected here -->
     </div>
 
@@ -131,6 +136,11 @@
                   <input class="form-input" type="number" step="0.001" id="pWeight" value="0" />
                 </div>
               </div>
+
+              <div class="form-group">
+                <label class="form-label">Total Item Sold</label>
+                <input class="form-input" type="number" id="pSold" value="0" min="0" />
+              </div>
             </div>
 
           </div> <!-- End top grid -->
@@ -162,9 +172,11 @@
   let products = [];
   let filteredProducts = [];
   let config = { categories: [], shapes: [], materials: [] };
+  let fgAttributes = [];
+  let currentListView = 'table'; // 'table' or 'card'
   let availableAttributes = [];
   const isAdmin = Auth.getUser()?.role === 'admin';
-  let currentView = 'table';
+
 
   // Elements
   const btnCreate = document.getElementById('btnCreateFg');
@@ -294,7 +306,7 @@
   }
 
   function renderCurrentView() {
-    if (currentView === 'table') {
+    if (currentListView === 'table') {
       tableViewContainer.style.display = 'block';
       cardViewContainer.style.display = 'none';
       renderTable();
@@ -313,7 +325,7 @@
 
     tableBody.innerHTML = filteredProducts.map(p => {
       const img = p.image_url
-        ? `<img src="${p.image_url}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" loading="lazy" />`
+        ? `<img src="${p.image_url}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; cursor: pointer;" loading="lazy" onclick="UI.showImage(this.src)" />`
         : `<div style="width:40px; height:40px; background:var(--bg-glass); border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--text-muted)">No Img</div>`;
 
       const invStr = `
@@ -322,59 +334,70 @@
       `;
 
       const attrCount = (p.attribute_ids || []).length;
-      const detailsStr = `
-        <div class="text-xs text-secondary">Wt: ${p.weight}g</div>
-        <div class="text-xs text-gold">₹${p.price}</div>
-        ${attrCount > 0 ? `<div class="text-xs text-muted">${attrCount} attr${attrCount > 1 ? 's' : ''}</div>` : ''}
-      `;
+      const imgUrl = p.image_url || '';
+      const attrHtml = (p.attribute_ids || [])
+        .map(attrId => {
+          const attr = availableAttributes.find(a => a.id === attrId);
+          return attr ? `<span class="badge badge-outline">${escapeHtml(attr.name)}</span>` : '';
+        })
+        .join('');
 
       return `
-        <tr>
-          <td>${img}</td>
-          <td>
-            <strong>${escapeHtml(p.product_code)}</strong>
-            ${p.casting_product_code ? `<br/><span class="text-xs text-muted">Cast: ${escapeHtml(p.casting_product_code)}</span>` : ''}
-          </td>
-          <td>${escapeHtml(p.category?.name || '—')}</td>
-          <td>${invStr}</td>
-          <td>${detailsStr}</td>
-          <td>
-            ${isAdmin ? `
-              <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); editProduct('${p.id}')">${UI.icon('edit')}</button>
-              <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteProduct('${p.id}')">${UI.icon('trash')}</button>
-            ` : '<span class="text-muted text-xs">Read Only</span>'}
-          </td>
-        </tr>
-      `;
+          <tr>
+            <td data-label="Image">
+              ${p.image_url ? `<img src="${p.image_url}" alt="${escapeHtml(p.product_code)}" style="width:40px;height:40px;object-fit:cover;border-radius:var(--radius-sm);background:var(--bg-glass);">` : `<div style="width:40px; height:40px; background:var(--bg-glass); border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--text-muted)">No Img</div>`}
+            </td>
+            <td data-label="Product Code" class="font-medium text-gold">${escapeHtml(p.product_code)}</td>
+            <td data-label="Casting Code" class="text-sm">
+              <span class="text-muted">${escapeHtml(p.casting_product_code) || '-'}</span>
+            </td>
+            <td data-label="Category">${escapeHtml(p.category?.name || '-')}</td>
+            <td data-label="Stock">
+              <span class="badge ${p.qty > 0 ? 'badge-success' : 'badge-error'}">${p.qty} in stock</span>
+            </td>
+            <td data-label="Sold">${p.total_item_sold || 0}</td>
+            <td data-label="Attributes">
+              <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                ${attrHtml}
+              </div>
+            </td>
+            <td data-label="Actions">
+              <div class="user-actions">
+                <button class="btn btn-sm btn-secondary" onclick="editProduct('${p.id}')" title="Edit">${UI.icon('edit')}</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteProduct('${p.id}')" title="Delete">${UI.icon('trash')}</button>
+              </div>
+            </td>
+          </tr>
+        `;
     }).join('');
   }
 
   function renderCards() {
     if (filteredProducts.length === 0) {
-      cardViewContainer.innerHTML = `<div style="grid-column: 1 / -1;"><div class="empty-state">No products found.</div></div>`;
+      cardViewContainer.innerHTML = `< div style = "grid-column: 1 / -1;" > <div class="empty-state">No products found.</div></div > `;
       return;
     }
 
     cardViewContainer.innerHTML = filteredProducts.map(p => {
       const img = p.image_url
-        ? `<img src="${p.image_url}" style="width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-md) var(--radius-md) 0 0;" loading="lazy" />`
+        ? `<img src="${p.image_url}" style="width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-md) var(--radius-md) 0 0; cursor: pointer;" loading="lazy" onclick="UI.showImage(this.src)" />`
         : `<div style="width:100%; aspect-ratio:1; background:var(--bg-glass); border-radius:var(--radius-md) var(--radius-md) 0 0; display:flex; align-items:center; justify-content:center; color:var(--text-muted)">No Img</div>`;
 
       return `
-               <div class="card" style="padding: 0; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; overflow: hidden; position: relative;" onclick="editProduct('${p.id}')">
-                  ${img}
-                  <div style="padding: 1rem;">
-                      <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem; color: var(--text-primary);">${escapeHtml(p.product_code)}</h3>
-                      <div class="text-sm text-muted">Stock: <strong style="color:var(--text-primary)">${p.qty}</strong></div>
-                  </div>
-                  
-                  ${isAdmin ? `
-                  <button class="btn btn-danger" style="position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.3rem; border-radius: 50%; opacity: 0.8; box-shadow: 0 2px 4px rgba(0,0,0,0.5);" onclick="event.stopPropagation(); deleteProduct('${p.id}')" title="Delete">
-                      ${UI.icon('trash')}
-                  </button>
-                  ` : ''}
-               </div>
-            `;
+        <div class="card" style="padding: 0; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; overflow: hidden; position: relative;" onclick="editProduct('${p.id}')">
+          ${img}
+          <div style="padding: 1rem;">
+            <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem; color: var(--text-primary);">${escapeHtml(p.product_code)}</h3>
+            <div class="text-sm text-muted">Stock: <strong style="color:var(--text-primary)">${p.qty}</strong></div>
+          </div>
+          ${isAdmin ? `
+            <button class="btn btn-danger" style="position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.3rem; border-radius: 50%; opacity: 0.8; box-shadow: 0 2px 4px rgba(0,0,0,0.5);" onclick="event.stopPropagation(); deleteProduct('${p.id}')" title="Delete">
+                ${UI.icon('trash')}
+            </button>
+            ` : ''
+        }
+        </div>
+      `;
     }).join('');
   }
 
@@ -418,7 +441,32 @@
     result.sort((a, b) => {
       if (sortMode === 'newest') return new Date(b.created_at) - new Date(a.created_at);
       if (sortMode === 'oldest') return new Date(a.created_at) - new Date(b.created_at);
-      if (sortMode === 'code_asc') return a.product_code.localeCompare(b.product_code);
+      if (sortMode === 'code_asc') {
+        const parseCode = (code) => {
+          if (!code) return { prefix: '', num: 0, str: '' };
+          const parts = code.split('-');
+          if (parts.length >= 3) {
+            const prefix = parts[0];
+            const suffix = parts[parts.length - 1]; // number at the end
+            const num = parseInt(suffix, 10);
+            return { prefix, num: isNaN(num) ? suffix : num, str: code };
+          }
+          return { prefix: code, num: 0, str: code };
+        };
+        const pA = parseCode(a.product_code);
+        const pB = parseCode(b.product_code);
+
+        const prefCmp = pA.prefix.localeCompare(pB.prefix);
+        if (prefCmp !== 0) return prefCmp;
+
+        if (typeof pA.num === 'number' && typeof pB.num === 'number') {
+          if (pA.num !== pB.num) return pA.num - pB.num;
+        } else {
+          const sufCmp = String(pA.num).localeCompare(String(pB.num));
+          if (sufCmp !== 0) return sufCmp;
+        }
+        return pA.str.localeCompare(pB.str);
+      }
       if (sortMode === 'qty_desc') return b.qty - a.qty;
       if (sortMode === 'qty_asc') return a.qty - b.qty;
       if (sortMode === 'weight_desc') return b.weight - a.weight;
@@ -441,7 +489,7 @@
   sortSelect.addEventListener('change', applyFiltersAndSort);
 
   btnViewTable.addEventListener('click', () => {
-    currentView = 'table';
+    currentListView = 'table';
     btnViewTable.style.background = 'var(--bg-glass)';
     btnViewTable.style.color = 'var(--text-primary)';
     btnViewCard.style.background = 'transparent';
@@ -450,7 +498,7 @@
   });
 
   btnViewCard.addEventListener('click', () => {
-    currentView = 'card';
+    currentListView = 'card';
     btnViewCard.style.background = 'var(--bg-glass)';
     btnViewCard.style.color = 'var(--text-primary)';
     btnViewTable.style.background = 'transparent';
@@ -469,11 +517,11 @@
       const placeholder = document.getElementById('imagePlaceholder');
 
       statusEl.textContent = 'Uploading to Supabase...';
-      statusEl.style.color = 'var(--text-gold)';
+      statusEl.style.color = 'var(--gold)';
 
       try {
         const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}_fg_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const fileName = `${Date.now()}_fg_${Math.random().toString(36).substring(7)}.${fileExt} `;
 
         const { publicUrl } = await api.uploadFile('product_images', fileName, file);
 
@@ -500,11 +548,91 @@
       document.getElementById('fgImageUrl').value = '';
       document.getElementById('imageActual').style.display = 'none';
       document.getElementById('imagePlaceholder').style.display = 'block';
+      document.getElementById('btnViewCard').style.color = 'var(--text-primary)';
+      document.getElementById('btnViewCard').style.background = 'var(--bg-glass)';
+      document.getElementById('btnViewTable').style.color = 'var(--text-muted)';
+      document.getElementById('btnViewTable').style.background = 'transparent';
       document.getElementById('imageUploadStatus').textContent = '';
+      document.getElementById('pSold').value = 0;
       renderFgAttributeSelector([]);
 
       document.getElementById('fgModalTitle').textContent = 'Add Finished Product';
       modal.classList.add('active');
+    });
+  }
+
+  // CSV Import Logic
+  function setupCsvImport() {
+    const csvInput = document.getElementById('fgCsvInput');
+    if (!csvInput) return;
+
+    csvInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        // Safer split that handles \r\n and \n, removing completely empty rows
+        const rows = text.split(/\r?\n/).map(r => r.trim()).filter(r => r.length > 0);
+        if (rows.length < 2) throw new Error("CSV appears empty or missing headers");
+
+        // Parse headers safely
+        const headers = rows[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+        const pCodeIdx = headers.findIndex(h => h === 'product code' || h === 'code' || h === 'product_code');
+        const priceIdx = headers.findIndex(h => h === 'price' || h === 'rate');
+        const qtyIdx = headers.findIndex(h => h === 'stock' || h === 'qty' || h === 'quantity');
+        const catIdx = headers.findIndex(h => h === 'catagory' || h === 'category');
+        const soldIdx = headers.findIndex(h => h === 'total item sold' || h === 'total_item_sold' || h === 'sold');
+        const waxStdIdx = headers.findIndex(h => h === 'wax std weight' || h === 'wax_std_weight' || h === 'wax std wt');
+        const waxTotalIdx = headers.findIndex(h => h === 'wax total weight' || h === 'wax_total_weight' || h === 'wax total wt');
+
+        if (pCodeIdx === -1) throw new Error("Could not find a 'Product Code' column in CSV headers");
+
+        const items = [];
+        for (let i = 1; i < rows.length; i++) {
+          if (rows[i].toLowerCase() === 'csv appears empty or missing headers') continue;
+
+          const rawCols = rows[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || rows[i].split(',');
+          // If split length is less than headers, fill with empty strings to prevent out-of-bounds
+          const cols = [];
+          for (let c = 0; c < headers.length; c++) {
+            cols.push(rawCols[c] !== undefined ? rawCols[c] : "");
+          }
+
+          const clean = cols.map(c => c ? c.replace(/^"|"$/g, '').trim() : '');
+
+          if (!clean[pCodeIdx]) continue; // Skip if no product code
+
+          const payload = {
+            product_code: clean[pCodeIdx]
+          };
+          if (priceIdx !== -1 && clean[priceIdx] !== '') {
+            // Remove currency symbols if attached (like ₹)
+            const pVal = clean[priceIdx].replace(/[^0-9.]/g, '');
+            if (pVal) payload.price = parseFloat(pVal);
+          }
+          if (qtyIdx !== -1 && clean[qtyIdx] !== '') payload.qty = parseInt(clean[qtyIdx]);
+          if (catIdx !== -1 && clean[catIdx]) payload.category_name = clean[catIdx];
+          if (soldIdx !== -1 && clean[soldIdx] !== '') payload.total_item_sold = parseInt(clean[soldIdx]);
+          if (waxStdIdx !== -1 && clean[waxStdIdx] !== '') payload.wax_std_weight = parseFloat(clean[waxStdIdx]);
+          if (waxTotalIdx !== -1 && clean[waxTotalIdx] !== '') payload.wax_total_weight = parseFloat(clean[waxTotalIdx]);
+
+          items.push(payload);
+        }
+
+        if (items.length === 0) throw new Error("No valid rows found in CSV");
+
+        UI.toast(`Uploading ${items.length} items...`, 'info');
+        const resp = await api.bulkUploadFinishedGoods(items);
+        UI.toast(resp.message, 'success');
+        loadProducts();
+
+      } catch (err) {
+        UI.toast(err.message || "Failed to process CSV", 'error');
+        console.error(err);
+      } finally {
+        e.target.value = ''; // Reset input
+      }
     });
   }
 
@@ -525,6 +653,7 @@
     document.getElementById('pQty').value = p.qty || 0;
     document.getElementById('pPrice').value = p.price || 0;
     document.getElementById('pWeight').value = p.weight || 0;
+    document.getElementById('pSold').value = p.total_item_sold || 0;
 
     for (let i = 1; i <= 5; i++) {
       document.getElementById(`s${i}_shape`).value = p[`stone_${i}_type_id`] || '';
@@ -595,6 +724,7 @@
       qty: document.getElementById('pQty').value,
       price: document.getElementById('pPrice').value,
       weight: document.getElementById('pWeight').value,
+      total_item_sold: document.getElementById('pSold').value,
       attribute_ids: JSON.parse(document.getElementById('fgSelectedAttrs').value || '[]'),
     };
 
@@ -606,7 +736,22 @@
     }
 
     try {
-      if (id) await api.updateFinishedGood(id, payload);
+      let finalId = id;
+      // Check for duplicates if creating new
+      if (!finalId) {
+        const existing = products.find(p => p.product_code.toLowerCase() === payload.product_code.toLowerCase());
+        if (existing) {
+          const proceed = await UI.confirm('Duplicate Product Code', `Product code "${payload.product_code}" already exists in Finished Goods.Do you want to update the existing entry instead of creating a new one ? `);
+          if (!proceed) {
+            btn.disabled = false;
+            btn.innerHTML = 'Save Product';
+            return;
+          }
+          finalId = existing.id; // Switch to update mode
+        }
+      }
+
+      if (finalId) await api.updateFinishedGood(finalId, payload);
       else await api.createFinishedGood(payload);
 
       UI.toast('Product Saved', 'success');
@@ -632,5 +777,6 @@
     } catch (e) { }
   }
 
+  setupCsvImport();
   init();
 })();

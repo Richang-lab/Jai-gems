@@ -303,7 +303,7 @@
 }
 
 .menu-toggle {
-    display: none;
+    display: flex;
     background: transparent;
     border: 1px solid var(--border-subtle);
     color: var(--text-primary);
@@ -437,4 +437,12 @@
         margin: var(--space-md);
         max-width: calc(100vw - 2rem);
     }
+}
+/* Sidebar collapse on desktop */
+.sidebar.collapsed {
+    transform: translateX(-100%);
+}
+
+.sidebar.collapsed ~ .main-content {
+    margin-left: 0;
 }

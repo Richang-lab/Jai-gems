@@ -72,6 +72,10 @@
     <div id="sidebarOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99;">
     </div>
 
+    <!-- PDF Generation Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.31/dist/jspdf.plugin.autotable.min.js"></script>
+
     <script src="/js/api.js"></script>
     <script src="/js/auth.js"></script>
     <script src="/js/ui.js"></script>
@@ -117,12 +121,17 @@
                     }
                 });
 
-                // Mobile menu toggle
+                // Sidebar toggle (works for both desktop collapse and mobile slide)
                 const sidebar = document.getElementById('sidebar');
                 const overlay = document.getElementById('sidebarOverlay');
                 document.getElementById('menuToggle').addEventListener('click', () => {
-                    sidebar.classList.toggle('open');
-                    overlay.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
+                    const isMobile = window.innerWidth <= 768;
+                    if (isMobile) {
+                        sidebar.classList.toggle('open');
+                        overlay.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
+                    } else {
+                        sidebar.classList.toggle('collapsed');
+                    }
                 });
                 overlay.addEventListener('click', () => {
                     sidebar.classList.remove('open');

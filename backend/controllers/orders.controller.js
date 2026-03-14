@@ -77,7 +77,7 @@ async function getOrders(req, res) {
             .from('orders')
             .select(`
                 *,
-                client:client_id (id, name, phone),
+                client:client_id (id, business_name, phone_number),
                 order_items (id, status)
             `)
             .order('created_at', { ascending: false });
@@ -96,7 +96,7 @@ async function getOrder(req, res) {
             .from('orders')
             .select(`
                 *,
-                client:client_id (id, name, phone),
+                client:client_id (id, business_name, phone_number),
                 order_items (*)
             `)
             .eq('id', id)
@@ -163,9 +163,9 @@ async function createOrder(req, res) {
             if (order_type === 'finished_good') {
                 unitPrice = item.unit_price || 0;
             } else {
-                // Casting: price = weight × castingRate (weight is stored in qty when qty_type=weight)
+                // Casting: rate is per KG. Weight is input in grams, so convert to KG
                 const weight = item.qty_type === 'weight' ? Number(item.qty) : 0;
-                unitPrice = weight * castingRate;
+                unitPrice = (weight / 1000) * castingRate;
             }
 
             const status = await autoStatus(item.product_code, order_type);
@@ -177,6 +177,7 @@ async function createOrder(req, res) {
                 qty_type: item.qty_type || 'pairs',
                 unit_price: unitPrice,
                 status,
+                is_urgent: item.is_urgent ? true : false
             };
         }));
 

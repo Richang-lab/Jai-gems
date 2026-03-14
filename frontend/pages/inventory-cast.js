@@ -13,19 +13,19 @@
       </div>
       <div style="display:flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
         <!-- Filter/Sort Bar -->
-        <div style="display:flex; gap: 0.5rem; background: var(--bg-glass); padding: 0.3rem; border-radius: var(--radius-md);">
-           <select id="cCatFilter" class="form-input" style="width: 140px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
+        <div style="display:flex; flex-wrap: wrap; gap: 0.5rem; background: var(--bg-glass); padding: 0.3rem; border-radius: var(--radius-md); width: 100%;">
+           <select id="cCatFilter" class="form-input" style="flex: 1; min-width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
               <option value="">All Categories</option>
            </select>
-           <select id="cStockFilter" class="form-input" style="width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
+           <select id="cStockFilter" class="form-input" style="flex: 1; min-width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
               <option value="all">All Stock</option>
               <option value="in">In Stock (&gt;0)</option>
               <option value="out">Out of Stock (=0)</option>
            </select>
-           <select id="cAttrFilter" class="form-input" style="width: 140px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
+           <select id="cAttrFilter" class="form-input" style="flex: 1; min-width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
               <option value="">All Attributes</option>
            </select>
-           <select id="cSort" class="form-input" style="width: 140px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
+           <select id="cSort" class="form-input" style="flex: 1; min-width: 120px; padding: 0.2rem 0.5rem; font-size: 0.85rem;">
               <option value="newest">Newest First</option>
               <option value="code_asc">Code (A-Z)</option>
               <option value="qty_desc">Qty (High-Low)</option>
@@ -34,8 +34,8 @@
            </select>
         </div>
 
-        <div class="search-bar" style="display:flex; gap: 0.5rem; align-items: center;">
-          <input type="text" id="cSearch" class="form-input" placeholder="Search..." style="width: 180px;" />
+        <div class="search-bar" style="display:flex; flex: 1; min-width: 200px; gap: 0.5rem; align-items: center;">
+          <input type="text" id="cSearch" class="form-input" placeholder="Search..." style="flex: 1;" />
           <button class="btn btn-secondary btn-sm" id="btnSearchCast">Search</button>
         </div>
 
@@ -43,6 +43,9 @@
            <button class="btn btn-sm" id="btnViewTable" style="background:var(--bg-glass); color:var(--text-primary);" title="Table View">${UI.icon('list')}</button>
            <button class="btn btn-sm" id="btnViewCards" style="background:transparent; color:var(--text-muted);" title="Card View">${UI.icon('grid')}</button>
         </div>
+
+        <input type="file" id="cCsvInput" accept=".csv" style="display:none;" />
+        <button class="btn btn-secondary" onclick="document.getElementById('cCsvInput').click()">${UI.icon('plus')} Import CSV</button>
 
         <button class="btn btn-primary" id="btnTransactCast">
           ${UI.icon('plus')} Add Casting
@@ -70,7 +73,7 @@
       </div>
     </div>
 
-    <div id="castCardGrid" style="display:none; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-md); margin-bottom: 2rem;"></div>
+    <div id="castCardGrid" style="display:none; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-sm); margin-bottom: 2rem;"></div>
 
     <!-- Transaction Modal -->
     <div class="modal-overlay" id="castModal">
@@ -183,6 +186,19 @@
   const btnViewCards = document.getElementById('btnViewCards');
 
   let currentView = 'table';
+
+  // Set initial button states based on currentView
+  if (currentView === 'cards') {
+    btnViewCards.style.background = 'var(--bg-glass)';
+    btnViewCards.style.color = 'var(--text-primary)';
+    btnViewTable.style.background = 'transparent';
+    btnViewTable.style.color = 'var(--text-muted)';
+  } else { // currentView === 'table'
+    btnViewTable.style.background = 'var(--bg-glass)';
+    btnViewTable.style.color = 'var(--text-primary)';
+    btnViewCards.style.background = 'transparent';
+    btnViewCards.style.color = 'var(--text-muted)';
+  }
 
   if (!isAdmin && btnTransact) btnTransact.style.display = 'none';
 
@@ -309,7 +325,7 @@
 
     tbody.innerHTML = filteredInventory.map(item => {
       const img = item.image_url
-        ? `<img src="${item.image_url}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;" loading="lazy" />`
+        ? `<img src="${item.image_url}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; cursor: pointer;" loading="lazy" onclick="UI.showImage(this.src)" />`
         : `<div style="width:40px; height:40px; background:var(--bg-glass); border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--text-muted)">No Img</div>`;
 
       const catName = categories.find(c => c.id === item.category_id)?.name || '\u2014';
@@ -327,17 +343,23 @@
 
       return `
         <tr>
-          <td>${img}</td>
-          <td>
-            <strong>${escapeHtml(item.casting_product_code)}</strong>
-            ${item.product_code ? `<br/><span class="text-xs text-muted">Prod: ${escapeHtml(item.product_code)}</span>` : ''}
+          <td data-label="Image" class="img-cell">
+            <div class="product-img-wrapper" style="width: 100%; aspect-ratio: 1; border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-hover); display: flex; align-items: center; justify-content: center;">
+              ${item.image_url ? `<img src="${item.image_url}" style="width: 100%; height: 100%; object-fit: cover; cursor: pointer;" onclick="event.stopPropagation(); UI.showImage('${item.image_url}')">` : `<span class="text-muted">${UI.icon('image')}</span>`}
+            </div>
           </td>
-          <td>${escapeHtml(catName)}</td>
-          <td>${invStr}</td>
-          <td>${detailsStr}</td>
-          <td>
-            <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); editCasting('${item.id}')" title="Edit">${UI.icon('edit')}</button>
-            ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteCasting('${item.id}')" title="Delete">${UI.icon('trash')}</button>` : ''}
+          <td data-label="Casting Code">
+            <div style="font-weight: 500; color: var(--gold-light);">${escapeHtml(item.casting_product_code)}</div>
+            ${item.product_code ? `<div class="text-xs text-muted">FG: ${escapeHtml(item.product_code)}</div>` : ''}
+          </td>
+          <td data-label="Category">${escapeHtml(catName)}</td>
+          <td data-label="Inventory">${invStr}</td>
+          <td data-label="Details">${detailsStr}</td>
+          <td data-label="Actions">
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation(); editCasting('${item.id}')" title="Edit">${UI.icon('edit')}</button>
+              ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteCasting('${item.id}')" title="Delete">${UI.icon('trash')}</button>` : ''}
+            </div>
           </td>
         </tr>
       `;
@@ -347,38 +369,28 @@
   function renderCards() {
     const grid = document.getElementById('castCardGrid');
     if (!grid) return;
-
     if (filteredInventory.length === 0) {
-      grid.innerHTML = `<div style="grid-column:1/-1"><div class="empty-state">No matching castings.</div></div>`;
+      grid.innerHTML = `<div style="grid-column: 1 / -1;"><div class="empty-state">No casting inventory found.</div></div>`;
       return;
     }
 
     grid.innerHTML = filteredInventory.map(item => {
       const img = item.image_url
-        ? `<img src="${item.image_url}" style="width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-md) var(--radius-md) 0 0;" loading="lazy" />`
-        : `<div style="width:100%; aspect-ratio:1; background:var(--bg-glass); border-radius: var(--radius-md) var(--radius-md) 0 0; display:flex; align-items:center; justify-content:center; color:var(--text-muted)">${UI.icon('image')}</div>`;
-
-      const catName = categories.find(c => c.id === item.category_id)?.name || '';
+        ? `<img src="${item.image_url}" style="width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-md) var(--radius-md) 0 0; cursor: pointer;" loading="lazy" onclick="UI.showImage(this.src)" />`
+        : `<div style="width:100%; aspect-ratio:1; background:var(--bg-glass); border-radius:var(--radius-md) var(--radius-md) 0 0; display:flex; align-items:center; justify-content:center; color:var(--text-muted)">No Img</div>`;
 
       return `
-        <div class="card" style="padding: 0; overflow: hidden; cursor: pointer; transition: transform 0.2s;" onclick="editCasting('${item.id}')">
+        <div class="card" style="padding: 0; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; overflow: hidden; position: relative;" onclick="editCasting('${item.id}')">
           ${img}
-          <div style="padding: 0.85rem;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem;">
-              <div>
-                <h3 style="margin: 0; font-size: 1rem; color: var(--gold-light);">${escapeHtml(item.casting_product_code)}</h3>
-                ${catName ? `<div class="text-xs text-muted">${escapeHtml(catName)}</div>` : ''}
-              </div>
-              <div style="display:flex; gap: 0.25rem;">
-                <button class="btn btn-secondary btn-sm" style="padding: 0.2rem;" onclick="event.stopPropagation(); editCasting('${item.id}')">${UI.icon('edit')}</button>
-                ${isAdmin ? `<button class="btn btn-danger btn-sm" style="padding: 0.2rem;" onclick="event.stopPropagation(); deleteCasting('${item.id}')">${UI.icon('trash')}</button>` : ''}
-              </div>
-            </div>
-            <div style="font-size: 1.1rem; font-weight: 600; color: ${item.qty === 0 ? 'var(--error)' : 'var(--text-primary)'}; text-align: center; margin: 0.4rem 0;">${item.qty} <span style="font-size:0.75rem; font-weight:400; color:var(--text-muted)">pcs</span></div>
-            <div style="font-size: 0.75rem; color: var(--text-muted); text-align: center; border-top: 1px solid var(--border-subtle); padding-top: 0.4rem;">
-              Std: ${parseFloat(item.std_weight).toFixed(2)}g
-            </div>
+          <div style="padding: 1rem;">
+            <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem; color: var(--text-primary);">${escapeHtml(item.casting_product_code)}</h3>
+            <div class="text-sm text-muted">Stock: <strong style="color:${item.qty === 0 ? 'var(--error)' : 'var(--text-primary)'}">${item.qty}</strong></div>
           </div>
+          ${isAdmin ? `
+            <button class="btn btn-danger" style="position: absolute; top: 0.5rem; right: 0.5rem; padding: 0.3rem; border-radius: 50%; opacity: 0.8; box-shadow: 0 2px 4px rgba(0,0,0,0.5);" onclick="event.stopPropagation(); deleteCasting('${item.id}')" title="Delete">
+                ${UI.icon('trash')}
+            </button>
+            ` : ''}
         </div>
       `;
     }).join('');
@@ -453,9 +465,27 @@
         }
       }
 
+      let finalId = id;
+      const inputCode = document.getElementById('cCode').value || '';
+
+      // Check for duplicates if creating new
+      if (!finalId && inputCode) {
+        const existing = inventory.find(i => (i.casting_product_code || '').toLowerCase() === inputCode.toLowerCase());
+        if (existing) {
+          const proceed = await UI.confirm('Duplicate Casting Code', `Casting code "${inputCode}" already exists. Do you want to update the existing entry instead of creating a new one?`);
+          if (!proceed) {
+            btn.disabled = false;
+            btn.innerHTML = 'Submit Entry';
+            return;
+          }
+          finalId = existing.id;
+          qtyChange = calculatedQty - (existing.qty || 0);
+        }
+      }
+
       const payload = {
-        id: id || null,
-        product_code: document.getElementById('cCode').value || null,
+        id: finalId || null,
+        product_code: inputCode,
         casting_product_code: document.getElementById('cCastCode').value,
         qty_change: qtyChange,
         std_weight: std,
@@ -565,7 +595,65 @@
     modal.classList.add('active');
   };
 
-  async function loadInventory() {
+  // CSV Import Logic
+  function setupCsvImport() {
+    const csvInput = document.getElementById('cCsvInput');
+    if (!csvInput) return;
+
+    csvInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const rows = text.split('\\n').map(r => r.trim()).filter(r => r);
+        if (rows.length < 2) throw new Error("CSV appears empty or missing headers");
+
+        const headers = rows[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+        const pCodeIdx = headers.findIndex(h => h === 'product_code' || h === 'product code' || h === 'code');
+        const cCodeIdx = headers.findIndex(h => h === 'casting_code' || h === 'cast code' || h === 'casting code' || h === 'casting_product_code');
+        const qtyIdx = headers.findIndex(h => h === 'qty' || h === 'quantity' || h === 'qty_change');
+        const stdWtIdx = headers.findIndex(h => h === 'std_weight' || h === 'std weight' || h === 'standard weight');
+
+        if (cCodeIdx === -1 && pCodeIdx === -1) throw new Error("Could not find a 'casting code' or 'product code' column");
+
+        const items = [];
+        for (let i = 1; i < rows.length; i++) {
+          const cols = rows[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || rows[i].split(',');
+          const clean = cols.map(c => c.replace(/^"|"$/g, '').trim());
+
+          const cc = cCodeIdx !== -1 ? clean[cCodeIdx] : null;
+          const pc = pCodeIdx !== -1 ? clean[pCodeIdx] : null;
+
+          if (!cc && !pc) continue;
+
+          const payload = {
+            product_code: pc,
+            casting_product_code: cc
+          };
+          if (qtyIdx !== -1 && clean[qtyIdx] !== '') payload.qty = parseInt(clean[qtyIdx]);
+          if (stdWtIdx !== -1 && clean[stdWtIdx] !== '') payload.std_weight = parseFloat(clean[stdWtIdx]);
+
+          items.push(payload);
+        }
+
+        if (items.length === 0) throw new Error("No valid rows found in CSV");
+
+        UI.toast(`Uploading ${items.length} items...`, 'info');
+        const resp = await api.bulkUploadCasting(items);
+        UI.toast(resp.message, 'success');
+        loadInventory();
+
+      } catch (err) {
+        UI.toast(err.message || "Failed to process CSV", 'error');
+        console.error(err);
+      } finally {
+        e.target.value = '';
+      }
+    });
+  }
+
+  async function init() {
     try {
       const config = await api.getInvConfig();
       categories = config.categories || [];
@@ -578,8 +666,7 @@
 
       const catModalSel = document.getElementById('cCategory');
       if (catModalSel) {
-        catModalSel.innerHTML = '<option value="">No Category</option>' +
-          categories.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+        document.getElementById('cCategory').innerHTML = '<option value="">No Category</option>' + String(categories.map(c => `<option value="${c.id}">${c.name}</option>`).join(''));
       }
 
       renderAttributeSelector([]);
@@ -588,11 +675,20 @@
       attrFilterSelect.innerHTML = '<option value="">All Attributes</option>' +
         availableAttributes.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
 
+      loadInventory(); // Load inventory after initial setup
+    } catch (err) {
+      UI.toast('Failed to load initial configuration', 'error');
+      console.error(err);
+    }
+  }
+
+  async function loadInventory() {
+    try {
       const data = await api.getCastingInventory();
       inventory = data.inventory || [];
       applyFiltersAndSort();
     } catch (err) {
-      UI.toast('Failed to load inventory', 'error');
+      UI.toast('Failed to load casting inventory', 'error');
       console.error(err);
     }
   }
@@ -638,5 +734,6 @@
     return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
   }
 
-  loadInventory();
+  init();
+  setupCsvImport();
 })();
